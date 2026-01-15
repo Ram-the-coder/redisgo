@@ -5,3 +5,7 @@ run:
 
 test:
 	go test -count=1 ./... -v
+
+fmt:
+	go fmt ./...
+	

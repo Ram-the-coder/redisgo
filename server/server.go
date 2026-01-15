@@ -3,32 +3,23 @@ package server
 import (
 	"bufio"
 	"errors"
-	"fmt"
 	"io"
 	"net"
 	"os"
 	"strconv"
-	"sync"
 
+	"github.com/ram-the-coder/redisgo/internal/resp"
 	"github.com/rs/zerolog/log"
 )
 
 type Server struct {
-	address           string
-	listener          net.Listener
-	activeConnections sync.WaitGroup
-	stopCh            chan struct{}
+	address  string
+	listener net.Listener
+	stopCh   chan struct{}
 }
 
 func NewServer(address string) *Server {
 	return &Server{address: address, stopCh: make(chan struct{})}
-}
-
-func (s *Server) getAddressListeningOn() (string, error) {
-	if s.listener == nil {
-		return "", errors.New("Cannot get listener address when server is not running")
-	}
-	return s.listener.Addr().String(), nil
 }
 
 func (s *Server) Start() error {
@@ -52,6 +43,13 @@ func (s *Server) Stop() {
 	os.Exit(0)
 }
 
+func (s *Server) getAddressListeningOn() (string, error) {
+	if s.listener == nil {
+		return "", errors.New("Cannot get listener address when server is not running")
+	}
+	return s.listener.Addr().String(), nil
+}
+
 func (s *Server) acceptConnectionLoop() {
 	for {
 		conn, err := s.listener.Accept()
@@ -65,9 +63,7 @@ func (s *Server) acceptConnectionLoop() {
 				continue
 			}
 		}
-		s.activeConnections.Go(func() {
-			s.handleConnection(conn)
-		})
+		go s.handleConnection(conn)
 	}
 }
 
@@ -94,7 +90,7 @@ func handleMessages(conn net.Conn, messageCh <-chan string) {
 	for message := range messageCh {
 		if message == "PING" {
 			log.Info().Msg("Got PING, replying with PONG")
-			conn.Write([]byte(simpleString("PONG")))
+			conn.Write([]byte(resp.SimpleString("PONG")))
 			continue
 		}
 
@@ -114,29 +110,17 @@ func handleMessages(conn net.Conn, messageCh <-chan string) {
 					command := message
 					if command == "COMMAND" {
 						log.Info().Msg("Got COMMAND, replying with empty array")
-						conn.Write([]byte(array(0)))
+						conn.Write([]byte(resp.Array(0)))
 						continue
 					}
 
 					if command == "PING" {
 						log.Info().Msg("Got PING, replying with PONG")
-						conn.Write([]byte(simpleString("PONG")))
+						conn.Write([]byte(resp.SimpleString("PONG")))
 						continue
 					}
 				}
 			}
 		}
 	}
-}
-
-func simpleString(str string) string {
-	return fmt.Sprintf("+%s\r\n", str)
-}
-
-func array(n int) string {
-	return fmt.Sprintf("*%d\r\n", n)
-}
-
-func bulkString(str string) string {
-	return fmt.Sprintf("$%d\r\n%s\r\n", len(str), str)
 }
