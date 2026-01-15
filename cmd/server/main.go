@@ -18,7 +18,5 @@ func main() {
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
 	<-sig // block until Ctrl+C or kill
-	if err := s.Stop(); err != nil {
-		log.Fatalf("error while stopping server: %v", err)
-	}
+	s.Stop()
 }
