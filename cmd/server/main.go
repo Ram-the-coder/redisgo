@@ -1,18 +1,21 @@
 package main
 
 import (
-	"log"
 	"os"
 	"os/signal"
 	"syscall"
 
 	"github.com/ram-the-coder/redisgo/server"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 )
 
 func main() {
-	s := server.NewServer(":6379")	
+	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
+	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
+	s := server.NewServer(":6379")
 	if err := s.Start(); err != nil {
-		log.Fatalf("server failed: %v", err)
+		log.Fatal().Msgf("server failed: %v", err)
 	}
 
 	sig := make(chan os.Signal, 1)
