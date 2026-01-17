@@ -15,7 +15,8 @@ func main() {
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
 	s := server.NewServer(":6379")
 	if err := s.Start(); err != nil {
-		log.Fatal().Msgf("server failed: %v", err)
+		log.Err(err).Msgf("server failed to start")
+		os.Exit(1)
 	}
 
 	sig := make(chan os.Signal, 1)

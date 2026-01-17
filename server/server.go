@@ -3,9 +3,9 @@ package server
 import (
 	"bufio"
 	"errors"
+	"fmt"
 	"io"
 	"net"
-	"os"
 	"strconv"
 
 	"github.com/ram-the-coder/redisgo/internal/resp"
@@ -25,8 +25,7 @@ func NewServer(address string) *Server {
 func (s *Server) Start() error {
 	ln, err := net.Listen("tcp", s.address)
 	if err != nil {
-		log.Info().Msgf("Error listening: %s", err.Error())
-		os.Exit(1)
+		return fmt.Errorf("failed to listen on %s: %w", s.address, err)
 	}
 	s.listener = ln
 	addressListeningOn, _ := s.getAddressListeningOn()
@@ -40,12 +39,11 @@ func (s *Server) Stop() {
 	log.Info().Msg("Stopping server...")
 	close(s.stopCh)    // Stop waiting for new connections on the listener
 	s.listener.Close() // Stop listening on the port
-	os.Exit(0)
 }
 
 func (s *Server) getAddressListeningOn() (string, error) {
 	if s.listener == nil {
-		return "", errors.New("Cannot get listener address when server is not running")
+		return "", errors.New("cannot get listener address when server is not running")
 	}
 	return s.listener.Addr().String(), nil
 }

@@ -12,8 +12,7 @@ import (
 )
 
 func TestServerHandlesConnectionsConcurrently(t *testing.T) {
-	s := NewServer(":0")
-	s.Start()
+	s := startTestServer(t)
 	hostPort, err := s.getAddressListeningOn()
 	assert.Nil(t, err, "error in getting address listening on")
 
@@ -69,8 +68,7 @@ func TestCommands(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := NewServer(":0")
-			s.Start()
+			s := startTestServer(t)
 			hostPort, err := s.getAddressListeningOn()
 			assert.Nil(t, err, "error in getting address listening on")
 
@@ -86,4 +84,11 @@ func TestCommands(t *testing.T) {
 			assert.Equal(t, tt.expected, message)
 		})
 	}
+}
+
+func startTestServer(t *testing.T) *Server {
+	s := NewServer(":0")
+	s.Start()
+	t.Cleanup(func() {s.Stop()})
+	return s
 }
