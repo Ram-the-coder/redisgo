@@ -11,7 +11,7 @@ func NewSimpleString(str string) *SimpleString {
 }
 
 func (rss *SimpleString) WriteAsBytes(buffer *bytes.Buffer) {
-	buffer.WriteByte('+')
+	buffer.WriteByte(SimpleStringTypeId)
 	buffer.Write(rss.Value)
 	buffer.WriteString("\r\n")
 }

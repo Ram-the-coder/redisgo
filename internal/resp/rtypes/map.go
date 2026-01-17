@@ -10,9 +10,11 @@ type Map struct {
 }
 
 func (rm *Map) WriteAsBytes(buffer *bytes.Buffer) {
-	buffer.WriteByte('%')
+	buffer.WriteByte(MapTypeId)
+	// Map Length
 	buffer.WriteString(strconv.Itoa(len(rm.KvPairs)))
 	buffer.WriteString("\r\n")
+	// Map Items
 	for _, kvPair := range rm.KvPairs {
 		kvPair[0].WriteAsBytes(buffer)
 		kvPair[1].WriteAsBytes(buffer)

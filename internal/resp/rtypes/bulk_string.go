@@ -14,9 +14,13 @@ func NewBulkString(str string) *BulkString {
 }
 
 func (rbs *BulkString) WriteAsBytes(buffer *bytes.Buffer) {
-	buffer.WriteByte('$')
+	buffer.WriteByte(BulkStringTypeId)
+
+	// String length
 	buffer.WriteString(strconv.Itoa(len(rbs.Value)))
 	buffer.WriteString("\r\n")
+
+	// String value
 	buffer.Write(rbs.Value)
 	buffer.WriteString("\r\n")
 }

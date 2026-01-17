@@ -10,7 +10,7 @@ type Int struct {
 }
 
 func (ri *Int) WriteAsBytes(buffer *bytes.Buffer) {
-	buffer.WriteByte(':')
+	buffer.WriteByte(IntTypeId)
 	buffer.WriteString(strconv.Itoa(ri.Value))
 	buffer.WriteString("\r\n")
 }

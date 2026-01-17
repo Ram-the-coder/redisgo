@@ -17,9 +17,6 @@ type Command struct {
 	Arguments []rtypes.RespDataType
 }
 
-const ArrayType byte = '*'
-const BulkStringType byte = '$'
-
 func ReadCommand(conn net.Conn) (*Command, error) {
 	reader := bufio.NewReader(conn)
 	element, err := readElement(reader)
@@ -35,8 +32,11 @@ func ReadCommand(conn net.Conn) (*Command, error) {
 		if !ok {
 			return nil, fmt.Errorf("the first element %s was not a string", element)
 		}
-		return &Command{string(commandName.Value), e.Elements[1:]}, nil
-
+		return &Command{
+			Name: string(commandName.Value),
+			Arguments: e.Elements[1:],
+		}, nil
+	// Not yet handling non-array top level elements
 	default:
 		return nil, fmt.Errorf("failed to read command, unhandled element: %s", element)
 	}
@@ -48,7 +48,7 @@ func readElement(reader *bufio.Reader) (rtypes.RespDataType, error) {
 		return nil, fmt.Errorf("failed to read first byte of the command: %w", err)
 	}
 
-	if dataType == ArrayType {
+	if dataType == rtypes.ArrayTypeId {
 		arrayLength, err := readInteger(reader)
 		if err != nil {
 			return nil, err
@@ -64,7 +64,7 @@ func readElement(reader *bufio.Reader) (rtypes.RespDataType, error) {
 		return &rtypes.Array{Elements: values}, nil
 	}
 
-	if dataType == BulkStringType {
+	if dataType == rtypes.BulkStringTypeId {
 		strLength, err := readInteger(reader)
 		if err != nil {
 			return nil, err
@@ -73,6 +73,7 @@ func readElement(reader *bufio.Reader) (rtypes.RespDataType, error) {
 		if _, err = io.ReadFull(reader, str); err != nil {
 			return nil, fmt.Errorf("failed to read string: %w", err)
 		}
+		// consume the next 2 bytes (\r\n)
 		if _, err = io.ReadFull(reader, make([]byte, 2)); err != nil {
 			return nil, fmt.Errorf("failed to read delimiter for string: %w", err)
 		}

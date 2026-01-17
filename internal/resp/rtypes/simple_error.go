@@ -11,7 +11,7 @@ func NewSimpleError(str string) *SimpleError {
 }
 
 func (rss *SimpleError) WriteAsBytes(buffer *bytes.Buffer) {
-	buffer.WriteByte('-')
+	buffer.WriteByte(SimpleErrorTypeId)
 	buffer.Write(rss.Value)
 	buffer.WriteString("\r\n")
 }
