@@ -33,7 +33,7 @@ func ReadCommand(conn net.Conn) (*Command, error) {
 			return nil, fmt.Errorf("the first element %s was not a string", element)
 		}
 		return &Command{
-			Name: string(commandName.Value),
+			Name:      string(commandName.Value),
 			Arguments: e.Elements[1:],
 		}, nil
 	// Not yet handling non-array top level elements
