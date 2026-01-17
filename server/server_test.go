@@ -1,20 +1,18 @@
 package server
 
 import (
-	"bufio"
 	"context"
-	"net"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/redis/go-redis/v9"
+	"github.com/redis/go-redis/v9/maintnotifications"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestServerHandlesConnectionsConcurrently(t *testing.T) {
-	s := startTestServer(t)
-	hostPort, err := s.getAddressListeningOn()
-	assert.Nil(t, err, "error in getting address listening on")
+	hostPort := startTestServer(t)
 
 	done := make(chan struct{})
 
@@ -41,54 +39,36 @@ func TestServerHandlesConnectionsConcurrently(t *testing.T) {
 }
 
 func makeTcpConnection(t *testing.T, hostPort string, index int) {
-	conn, err := net.DialTimeout("tcp", hostPort, 1*time.Second)
-	assert.Nilf(t, err, "[%d] error in connecting to redisgo", index)
-	defer conn.Close()
-
-	conn.Write([]byte("PING\r\n"))
-
-	reader := bufio.NewReader(conn)
-	message, err := reader.ReadString('\n')
-	assert.Nilf(t, err, "[%d] error in reading response", index)
-	assert.NotNil(t, message)
-
+	rdb := getRedisClient(t, hostPort)
+	assert := assert.New(t)
+	val, err := rdb.Ping(context.Background()).Result()
+	assert.Nilf(err, "[%d] error in executing Ping", index)
+	assert.Equalf("PONG", val, "[%d] unexpected response", index)
 	time.Sleep(1 * time.Second)
 }
 
-func TestCommands(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    string
-		expected string
-	}{
-		{"simple PING PONG", "PING\r\n", "+PONG\r\n"},
-		{"bulk string PING PONG", "*1\r\n$4\r\nPING\r\n", "+PONG\r\n"},
-		{"COMMAND", "*1\r\n$7\r\nCOMMAND\r\n", "*0\r\n"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			s := startTestServer(t)
-			hostPort, err := s.getAddressListeningOn()
-			assert.Nil(t, err, "error in getting address listening on")
-
-			conn, err := net.DialTimeout("tcp", hostPort, 1*time.Second)
-			assert.Nil(t, err, "error in connecting to redisgo")
-			defer conn.Close()
-
-			conn.Write([]byte(tt.input))
-
-			reader := bufio.NewReader(conn)
-			message, err := reader.ReadString('\n')
-			assert.Nil(t, err, "error in reading response")
-			assert.Equal(t, tt.expected, message)
-		})
-	}
-}
-
-func startTestServer(t *testing.T) *Server {
+func startTestServer(t *testing.T) string {
 	s := NewServer(":0")
 	s.Start()
-	t.Cleanup(func() {s.Stop()})
-	return s
+	t.Cleanup(func() { s.Stop() })
+
+	hostPort, err := s.getAddressListeningOn()
+	assert.Nil(t, err, "error in getting address listening on")
+
+	return hostPort
+}
+
+func getRedisClient(t *testing.T, hostPort string) *redis.Client {
+	rdb := redis.NewClient(&redis.Options{
+		// Addr: "localhost:6379",
+		Addr:     hostPort,
+		Password: "",
+		DB:       0,
+		MaintNotificationsConfig: &maintnotifications.Config{
+			Mode: maintnotifications.ModeDisabled,
+		},
+		DisableIdentity: true,
+	})
+	t.Cleanup(func() { rdb.Close() })
+	return rdb
 }

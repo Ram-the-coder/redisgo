@@ -1,12 +1,9 @@
 package server
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
-	"io"
 	"net"
-	"strconv"
 
 	"github.com/ram-the-coder/redisgo/internal/resp"
 	"github.com/rs/zerolog/log"
@@ -67,57 +64,16 @@ func (s *Server) acceptConnectionLoop() {
 
 func (s *Server) handleConnection(conn net.Conn) {
 	defer conn.Close()
-	reader := bufio.NewReader(conn)
-	messageCh := make(chan string)
-	defer close(messageCh)
-	go handleMessages(conn, messageCh)
 	for {
-		message, err := reader.ReadString('\n')
+		command, err := resp.ReadCommand(conn)
 		if err != nil {
-			if !(errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed)) {
-				log.Err(err).Msg("Error reading messsage")
-			}
+			log.Err(err).Msg("Failed to read command")
 			return
 		}
-		log.Info().Msgf("Received message: %s", message)
-		messageCh <- message[:len(message)-2]
-	}
-}
-
-func handleMessages(conn net.Conn, messageCh <-chan string) {
-	for message := range messageCh {
-		if message == "PING" {
-			log.Info().Msg("Got PING, replying with PONG")
-			conn.Write([]byte(resp.SimpleString("PONG")))
-			continue
-		}
-
-		index := 0
-		if message[index] == '*' {
-			index++
-			arrayLength, err := strconv.Atoi(string(message[index]))
-			if err != nil {
-				log.Err(err).Msg("failed to read array length")
-				continue
-			}
-			message = <-messageCh
-			index = 0
-			for i := 0; i < arrayLength; i++ {
-				if message[index] == '$' {
-					message = <-messageCh
-					command := message
-					if command == "COMMAND" {
-						log.Info().Msg("Got COMMAND, replying with empty array")
-						conn.Write([]byte(resp.Array(0)))
-						continue
-					}
-
-					if command == "PING" {
-						log.Info().Msg("Got PING, replying with PONG")
-						conn.Write([]byte(resp.SimpleString("PONG")))
-						continue
-					}
-				}
+		if command != nil {
+			if err = Handle(command, conn); err != nil {
+				log.Err(err).Msg("Failed to handle command")
+				return
 			}
 		}
 	}
