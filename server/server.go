@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/ram-the-coder/redisgo/internal"
+	"github.com/ram-the-coder/redisgo/internal/handlers"
 	"github.com/ram-the-coder/redisgo/internal/resp"
 	"github.com/rs/zerolog/log"
 )
@@ -20,13 +21,17 @@ type Server struct {
 	stopCh                 chan struct{}
 	store                  *internal.Store
 	handlingDelayMsForTest atomic.Int64
+	storeCommandCh         chan *internal.Command
+	generalCommandCh       chan *internal.Command
 }
 
 func NewServer(address string) *Server {
 	return &Server{
-		address: address,
-		stopCh:  make(chan struct{}),
-		store:   internal.NewStore(),
+		address:          address,
+		stopCh:           make(chan struct{}),
+		store:            internal.NewStore(),
+		storeCommandCh:   make(chan *internal.Command, 50),
+		generalCommandCh: make(chan *internal.Command, 50),
 	}
 }
 
@@ -39,6 +44,16 @@ func (s *Server) Start() error {
 	addressListeningOn, _ := s.getAddressListeningOn()
 	log.Info().Msgf("Redisgo server started and listening on %s", addressListeningOn)
 
+	go handlers.HandleCommands(
+		s.storeCommandCh,
+		s.stopCh,
+		handlers.GetResponseForStoreCommand(s.store),
+	)
+	go handlers.HandleCommands(
+		s.generalCommandCh,
+		s.stopCh,
+		handlers.GetResponseForGeneralCommand(),
+	)
 	go s.acceptConnectionLoop()
 	return nil
 }
@@ -88,8 +103,17 @@ func (s *Server) handleConnection(conn net.Conn) {
 		}
 		if command != nil {
 			s.addDelayForTesting()
-			if err := Handle(command, conn, s.store); err != nil {
-				log.Err(err).Msgf("failed to handle command: %v", command)
+			commandType, err := command.GetType()
+			if err != nil {
+				log.Err(err).Msgf("invalid command")
+			}
+			log.Trace().Msgf("Command: %s, Type: %s", command.Name, commandType)
+			command.Metadata = internal.CommandMeta{Conn: conn}
+			switch commandType {
+			case internal.CommandTypeStore:
+				s.storeCommandCh <- command
+			case internal.CommandTypeGeneral:
+				s.generalCommandCh <- command
 			}
 		} else {
 			log.Trace().Msg("No command")

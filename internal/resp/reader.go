@@ -6,17 +6,14 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+	"strings"
 
+	"github.com/ram-the-coder/redisgo/internal"
 	"github.com/ram-the-coder/redisgo/internal/resp/rtypes"
 	"github.com/rs/zerolog/log"
 )
 
-type Command struct {
-	Name      string
-	Arguments []rtypes.RespDataType
-}
-
-func ReadCommand(reader *bufio.Reader) (*Command, error) {
+func ReadCommand(reader *bufio.Reader) (*internal.Command, error) {
 	element, err := readElement(reader)
 	if err != nil {
 		return nil, err
@@ -30,8 +27,8 @@ func ReadCommand(reader *bufio.Reader) (*Command, error) {
 		if !ok {
 			return nil, fmt.Errorf("the first element %s was not a string", element)
 		}
-		return &Command{
-			Name:      string(commandName.Value),
+		return &internal.Command{
+			Name:      strings.ToLower(string(commandName.Value)),
 			Arguments: e.Elements[1:],
 		}, nil
 	// Not yet handling non-array top level elements
