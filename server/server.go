@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 
+	"github.com/ram-the-coder/redisgo/internal"
 	"github.com/ram-the-coder/redisgo/internal/resp"
 	"github.com/rs/zerolog/log"
 )
@@ -13,10 +14,15 @@ type Server struct {
 	address  string
 	listener net.Listener
 	stopCh   chan struct{}
+	store    *internal.Store
 }
 
 func NewServer(address string) *Server {
-	return &Server{address: address, stopCh: make(chan struct{})}
+	return &Server{
+		address: address,
+		stopCh:  make(chan struct{}),
+		store:   internal.NewStore(),
+	}
 }
 
 func (s *Server) Start() error {
@@ -71,10 +77,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 			return
 		}
 		if command != nil {
-			if err = Handle(command, conn); err != nil {
-				log.Err(err).Msg("Failed to handle command")
-				return
-			}
+			Handle(command, conn, s.store)
 		}
 	}
 }

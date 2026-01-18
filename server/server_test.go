@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -13,13 +14,21 @@ import (
 
 func TestServerHandlesConnectionsConcurrently(t *testing.T) {
 	hostPort := startTestServer(t)
-
 	done := make(chan struct{})
+
+	makeTcpConnection := func(t *testing.T, hostPort string, index int) {
+		rdb := getRedisClient(t, hostPort)
+		assert := assert.New(t)
+		val, err := rdb.Ping(context.Background()).Result()
+		assert.Nilf(err, "[%d] error in executing Ping", index)
+		assert.Equalf("PONG", val, "[%d] unexpected response", index)
+		time.Sleep(100 * time.Millisecond)
+	}
 
 	go func() {
 		defer close(done)
-		// each makeTcpConnection takes just a little above 1s
-		// if they run concurrently, it should take just a little above 1s to complete
+		// each makeTcpConnection takes just a little above 100ms
+		// if they run concurrently, it should take just a little above 100ms to complete
 		var wg sync.WaitGroup
 		wg.Go(func() { makeTcpConnection(t, hostPort, 1) })
 		wg.Go(func() { makeTcpConnection(t, hostPort, 2) })
@@ -28,7 +37,7 @@ func TestServerHandlesConnectionsConcurrently(t *testing.T) {
 	}()
 
 	// set timeout to upper bound of time to complete the above goroutines
-	timeoutCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 	defer cancel()
 
 	select {
@@ -38,13 +47,30 @@ func TestServerHandlesConnectionsConcurrently(t *testing.T) {
 	}
 }
 
-func makeTcpConnection(t *testing.T, hostPort string, index int) {
+func TestSetAndGetKey(t *testing.T) {
+	hostPort := startTestServer(t)
 	rdb := getRedisClient(t, hostPort)
-	assert := assert.New(t)
-	val, err := rdb.Ping(context.Background()).Result()
-	assert.Nilf(err, "[%d] error in executing Ping", index)
-	assert.Equalf("PONG", val, "[%d] unexpected response", index)
-	time.Sleep(1 * time.Second)
+
+	val, err := rdb.Set(context.Background(), "testkey", "testvalue", 0*time.Second).Result()
+	assert.Nil(t, err, "error in setting key")
+	fmt.Printf("val: %s", val)
+
+	val, err = rdb.Get(context.Background(), "testkey").Result()
+	assert.Nil(t, err, "error in getting key")
+	assert.Equal(t, "testvalue", val)
+}
+
+func TestIntValue(t *testing.T) {
+	hostPort := startTestServer(t)
+	rdb := getRedisClient(t, hostPort)
+
+	val, err := rdb.Set(context.Background(), "testkey", 10, 0*time.Second).Result()
+	assert.Nil(t, err, "error in setting key")
+	fmt.Printf("val: %s", val)
+
+	val, err = rdb.Get(context.Background(), "testkey").Result()
+	assert.Nil(t, err, "error in getting key")
+	assert.Equal(t, "10", val)
 }
 
 func startTestServer(t *testing.T) string {
