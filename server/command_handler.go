@@ -16,8 +16,8 @@ const CommandPing = "ping"
 const CommandSet = "set"
 const CommandGet = "get"
 
-func Handle(command *resp.Command, conn net.Conn, store *internal.Store) {
-	log.Info().Msgf("Handling command: %s. Args: %s", command.Name, command.Arguments)
+func Handle(command *resp.Command, conn net.Conn, store *internal.Store) error {
+	log.Trace().Msgf("Handling command: %s. Args: %s", command.Name, command.Arguments)
 	switch strings.ToLower(command.Name) {
 	case CommandHello:
 		kvPairs := [][2]rtypes.RespDataType{
@@ -29,59 +29,51 @@ func Handle(command *resp.Command, conn net.Conn, store *internal.Store) {
 			{rtypes.NewBulkString("role"), rtypes.NewBulkString("master")},
 			{rtypes.NewBulkString("modules"), &rtypes.Array{Elements: []rtypes.RespDataType{}}},
 		}
-		resp.WriteResponse(&rtypes.Map{KvPairs: kvPairs}, conn)
-		return
+		return resp.WriteResponse(&rtypes.Map{KvPairs: kvPairs}, conn)
 
 	case CommandPing:
-		resp.WriteResponse(rtypes.NewSimpleString("PONG"), conn)
-		return
+		return resp.WriteResponse(rtypes.NewSimpleString("PONG"), conn)
 
 	case CommandSet:
 		keyStr, err := getString(command.Arguments[0])
 		if err != nil {
 			log.Err(err).Msg("failed to parse key")
-			writeErrorResponse(conn)
-			return
+			return writeErrorResponse(conn)
 		}
 		valueStr, err := getString(command.Arguments[1])
 		if err != nil {
 			log.Err(err).Msg("failed to parse value")
-			writeErrorResponse(conn)
-			return
+			return writeErrorResponse(conn)
 		}
 		store.Set(keyStr, valueStr)
-		resp.WriteResponse(rtypes.NewSimpleString("OK"), conn)
-		return
+		return resp.WriteResponse(rtypes.NewSimpleString("OK"), conn)
 
 	case CommandGet:
 		keyStr, err := getString(command.Arguments[0])
 		if err != nil {
 			log.Err(err).Msg("failed to parse key")
-			writeErrorResponse(conn)
-			return
+			return writeErrorResponse(conn)
 		}
 
 		value, ok, err := store.Get(keyStr)
-		log.Info().Msgf("Got value: %s", value)
+		log.Trace().Msgf("Got value: %s", value)
 		if err != nil {
-			writeErrorResponse(conn)
-			return
+			return writeErrorResponse(conn)
 		}
 		if !ok {
-			resp.WriteResponse(&rtypes.Null{}, conn)
-			return
+			return resp.WriteResponse(&rtypes.Null{}, conn)
 		}
 		resp.WriteResponse(rtypes.NewBulkString(string(value)), conn)
 
 	default:
-		writeErrorResponse(conn)
-		return
+		return writeErrorResponse(conn)
 	}
 
+	return writeErrorResponse(conn)
 }
 
-func writeErrorResponse(conn net.Conn) {
-	resp.WriteResponse(rtypes.NewSimpleError("ERR unknown command"), conn)
+func writeErrorResponse(conn net.Conn) error {
+	return resp.WriteResponse(rtypes.NewSimpleError("ERR unknown command"), conn)
 }
 
 func getString(rdt rtypes.RespDataType) (string, error) {

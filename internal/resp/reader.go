@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"strconv"
 
 	"github.com/ram-the-coder/redisgo/internal/resp/rtypes"
@@ -17,17 +16,16 @@ type Command struct {
 	Arguments []rtypes.RespDataType
 }
 
-func ReadCommand(conn net.Conn) (*Command, error) {
-	reader := bufio.NewReader(conn)
+func ReadCommand(reader *bufio.Reader) (*Command, error) {
 	element, err := readElement(reader)
 	if err != nil {
-		if !(errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed)) {
-			return nil, fmt.Errorf("failed to read command: %w", err)
-		}
-		return nil, nil
+		return nil, err
 	}
 	switch e := element.(type) {
 	case *rtypes.Array:
+		if len(e.Elements) == 0 {
+			return nil, fmt.Errorf("empty array is not part of a recognized command")
+		}
 		commandName, ok := e.Elements[0].(*rtypes.BulkString)
 		if !ok {
 			return nil, fmt.Errorf("the first element %s was not a string", element)
@@ -52,6 +50,9 @@ func readElement(reader *bufio.Reader) (rtypes.RespDataType, error) {
 		arrayLength, err := readInteger(reader)
 		if err != nil {
 			return nil, err
+		}
+		if arrayLength < 0 {
+			return nil, fmt.Errorf("invalid array length: %d", arrayLength)
 		}
 		values := make([]rtypes.RespDataType, arrayLength)
 		for i := range arrayLength {

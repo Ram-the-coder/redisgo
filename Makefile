@@ -1,4 +1,4 @@
-.PHONY: run test testv fmt vet
+.PHONY: run test testv race fmt vet
 
 run:
 	go run ./cmd/server
@@ -8,6 +8,9 @@ test:
 
 testv:
 	go test -count=1 ./... -v
+
+race:
+	go test -count=1 -race ./...
 
 fmt:
 	go fmt ./...
